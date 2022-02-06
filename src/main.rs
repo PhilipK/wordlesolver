@@ -51,15 +51,15 @@ fn string_to_requirements<N: AsRef<str>>(input: N, word: N) -> Result<[Requireme
         return Err("Input is wrong length".to_string());
     }
     Ok([
-        fun_name(word, 0, &input[0..1]),
-        fun_name(word, 1, &input[1..2]),
-        fun_name(word, 2, &input[2..3]),
-        fun_name(word, 3, &input[3..4]),
-        fun_name(word, 4, &input[4..5]),
+        to_requirement(word, 0, &input[0..1]),
+        to_requirement(word, 1, &input[1..2]),
+        to_requirement(word, 2, &input[2..3]),
+        to_requirement(word, 3, &input[3..4]),
+        to_requirement(word, 4, &input[4..5]),
     ])
 }
 
-fn fun_name(word: &str, index: usize, char: &str) -> Requirement {
+fn to_requirement(word: &str, index: usize, char: &str) -> Requirement {
     let s = word[index..index + 1].to_string();
     match char {
         "g" => Requirement::Green(s),
