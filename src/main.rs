@@ -8,7 +8,6 @@ fn main() {
     let stdin = io::stdin();
     let mut current_word: Option<String> = None;
     let mut current_colors: Option<String> = None;
-    sort_list_by_score(&mut words);
 
     println!("Write your guess (5 letter limit, then hit enter)");
     println!("Try one of theese");
@@ -97,15 +96,28 @@ enum Requirement {
 
 fn word_matches_requirements<N: AsRef<str>>(word: N, colors: &[Requirement; 5]) -> bool {
     let word_ref = word.as_ref();
+    let green_chars = colors
+        .into_iter()
+        .enumerate()
+        .filter(|(_, c)| match c {
+            Requirement::Green(_) => true,
+            _ => false,
+        })
+        .collect();
     for (i, color) in colors.iter().enumerate() {
-        if !word_matches_requirement(word_ref, i, color) {
+        if !word_matches_requirement(word_ref, i, color, &green_chars) {
             return false;
         }
     }
     return true;
 }
 
-fn word_matches_requirement<N: AsRef<str>>(word: N, index: usize, req: &Requirement) -> bool {
+fn word_matches_requirement<N: AsRef<str>>(
+    word: N,
+    index: usize,
+    req: &Requirement,
+    greens: &Vec<(usize, &Requirement)>,
+) -> bool {
     let word = word.as_ref();
     match req {
         Requirement::Green(char) => {
@@ -119,12 +131,30 @@ fn word_matches_requirement<N: AsRef<str>>(word: N, index: usize, req: &Requirem
             let char_at_index = &word[index..index + 1];
             return !char_at_index.eq(char);
         }
-        Requirement::Black(char) => !word.contains(char),
+        Requirement::Black(char) => {
+            let mut found_green_match = false;
+            for (green_index, req) in greens {
+                match req {
+                    Requirement::Green(green_char) => {
+                        found_green_match = *green_index != index && green_char == char;
+                    }
+                    _ => break,
+                }
+                if found_green_match {
+                    break;
+                }
+            }
+            if !found_green_match {
+                return !word.contains(char);
+            } else {
+                return true;
+            }
+        }
     }
 }
 
 fn create_word_list() -> Vec<String> {
-    let words_string = include_str!("../sgb-words.txt");
+    let words_string = include_str!("../sortedwords.txt");
     let lines = words_string.split("\n");
     lines.into_iter().map(|s| s.to_string()).collect()
 }
