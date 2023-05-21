@@ -14,17 +14,17 @@ fn main() {
     for word in words.iter().take(5) {
         println!("{}", word);
     }
-    println!("");
+    println!();
 
     for line in stdin.lock().lines() {
         let line = line.unwrap();
 
-        if current_word == None {
+        if current_word.is_none() {
             current_word = Some(line);
             println!("Write your colors (b=black,y=yellow,g=green) then hit enter");
             continue;
         }
-        if current_colors == None {
+        if current_colors.is_none() {
             current_colors = Some(line);
 
             let word = current_word.unwrap();
@@ -41,7 +41,7 @@ fn main() {
             for word in words.iter().take(5) {
                 println!("{}", word);
             }
-            println!("");
+            println!();
 
             println!("Write your guess (5 letter limit, then hit enter)");
         }
@@ -97,7 +97,7 @@ enum Requirement {
 fn word_matches_requirements<N: AsRef<str>>(word: N, colors: &[Requirement; 5]) -> bool {
     let word_ref = word.as_ref();
     let green_chars = colors
-        .into_iter()
+        .iter()
         .enumerate()
         .filter(|(_, c)| match c {
             Requirement::Green(_) => true,
@@ -109,7 +109,7 @@ fn word_matches_requirements<N: AsRef<str>>(word: N, colors: &[Requirement; 5]) 
             return false;
         }
     }
-    return true;
+    true
 }
 
 fn word_matches_requirement<N: AsRef<str>>(
@@ -122,14 +122,14 @@ fn word_matches_requirement<N: AsRef<str>>(
     match req {
         Requirement::Green(char) => {
             let char_at_index = &word[index..index + 1];
-            return char_at_index.eq(char);
+            char_at_index.eq(char)
         }
         Requirement::Yellow(char) => {
             if !word.contains(char) {
                 return false;
             }
             let char_at_index = &word[index..index + 1];
-            return !char_at_index.eq(char);
+            !char_at_index.eq(char)
         }
         Requirement::Black(char) => {
             let mut found_green_match = false;
@@ -145,9 +145,9 @@ fn word_matches_requirement<N: AsRef<str>>(
                 }
             }
             if !found_green_match {
-                return !word.contains(char);
+                !word.contains(char)
             } else {
-                return true;
+                true
             }
         }
     }
@@ -155,7 +155,7 @@ fn word_matches_requirement<N: AsRef<str>>(
 
 fn create_word_list() -> Vec<String> {
     let words_string = include_str!("../danskeord.txt");
-    let lines = words_string.split("\n");
+    let lines = words_string.split('\n');
     lines.into_iter().map(|s| s.to_string()).collect()
 }
 
@@ -164,7 +164,7 @@ fn calculate_score<N: AsRef<str>, M: AsRef<str>>(word: N, target: M) -> u32 {
     let target = target.as_ref();
     let has_doubles = has_doubles(word);
     let mut sum = 0;
-    for (index, char) in word.chars().into_iter().enumerate() {
+    for (index, char) in word.chars().enumerate() {
         let req = char_requirement(index, char.to_string(), target);
         sum += match req {
             Requirement::Green(_) => 3,
@@ -178,20 +178,18 @@ fn calculate_score<N: AsRef<str>, M: AsRef<str>>(word: N, target: M) -> u32 {
             Requirement::Black(_) => 0,
         }
     }
-    return sum;
+    sum
 }
 
 fn char_requirement<N: AsRef<str>, M: AsRef<str>>(index: usize, char: N, target: M) -> Requirement {
     let target = target.as_ref();
     let char = char.as_ref();
     if !target.contains(char) {
-        return Requirement::Black(char.to_string());
+        Requirement::Black(char.to_string())
+    } else if target[index..index + 1].eq(char) {
+        Requirement::Green(char.to_string())
     } else {
-        if target[index..index + 1].eq(char) {
-            return Requirement::Green(char.to_string());
-        } else {
-            return Requirement::Yellow(char.to_string());
-        }
+        Requirement::Yellow(char.to_string())
     }
 }
 
@@ -205,7 +203,7 @@ fn has_doubles<N: AsRef<str>>(word: N) -> bool {
             set.insert(char);
         }
     }
-    return false;
+    false
 }
 
 #[cfg(test)]
@@ -230,45 +228,40 @@ mod tests {
             Requirement::Black("f".to_string()),
             Requirement::Black("g".to_string()),
         ];
-        assert_eq!(true, word_matches_requirements("abbas", &requirement));
-        assert_eq!(false, word_matches_requirements("caby", &requirement));
-        assert_eq!(false, word_matches_requirements("decks", &requirement));
+        assert!(word_matches_requirements("abbas", &requirement));
+        assert!(!word_matches_requirements("caby", &requirement));
+        assert!(!word_matches_requirements("decks", &requirement));
     }
 
     #[test]
     fn yellow_is_in_word_but_not_on_location() {
-        assert_eq!(
-            true,
+        assert!(
             word_matches_requirement("dade", 0, &Requirement::Yellow("a".to_string()),&vec![])
         );
     }
 
     #[test]
     fn yellow_is_on_location() {
-        assert_eq!(
-            false,
-            word_matches_requirement("dade", 1, &Requirement::Yellow("a".to_string()),&vec![])
+        assert!(
+            !word_matches_requirement("dade", 1, &Requirement::Yellow("a".to_string()),&vec![])
         );
     }
 
     #[test]
     fn yellow_is_not_in_word() {
-        assert_eq!(
-            false,
-            word_matches_requirement("dade", 3, &Requirement::Yellow("g".to_string()),&vec![])
+        assert!(
+            !word_matches_requirement("dade", 3, &Requirement::Yellow("g".to_string()),&vec![])
         );
     }
 
     #[test]
     fn green_matches_location() {
-        assert_eq!(
-            true,
+        assert!(
             word_matches_requirement("dade", 0, &Requirement::Green("d".to_string()),&vec![])
         );
 
-        assert_eq!(
-            false,
-            word_matches_requirement("dade", 1, &Requirement::Green("d".to_string()),&vec![])
+        assert!(
+            !word_matches_requirement("dade", 1, &Requirement::Green("d".to_string()),&vec![])
         );
     }
 
@@ -282,7 +275,7 @@ mod tests {
             Requirement::Green("t".to_string()),
             Requirement::Black("e".to_string()),
         ];
-        assert_eq!(true, word_matches_requirements("pluto", &requirement));
-        assert_eq!(false, word_matches_requirements("plate", &requirement));
+        assert!(word_matches_requirements("pluto", &requirement));
+        assert!(!word_matches_requirements("plate", &requirement));
     }
 }
