@@ -154,7 +154,7 @@ fn word_matches_requirement<N: AsRef<str>>(
 }
 
 fn create_word_list() -> Vec<String> {
-    let words_string = include_str!("../sortedwords.txt");
+    let words_string = include_str!("../danskeord.txt");
     let lines = words_string.split("\n");
     lines.into_iter().map(|s| s.to_string()).collect()
 }
