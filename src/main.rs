@@ -239,7 +239,7 @@ mod tests {
     fn yellow_is_in_word_but_not_on_location() {
         assert_eq!(
             true,
-            word_matches_requirement("dade", 0, &Requirement::Yellow("a".to_string()))
+            word_matches_requirement("dade", 0, &Requirement::Yellow("a".to_string()),&vec![])
         );
     }
 
@@ -247,7 +247,7 @@ mod tests {
     fn yellow_is_on_location() {
         assert_eq!(
             false,
-            word_matches_requirement("dade", 1, &Requirement::Yellow("a".to_string()))
+            word_matches_requirement("dade", 1, &Requirement::Yellow("a".to_string()),&vec![])
         );
     }
 
@@ -255,7 +255,7 @@ mod tests {
     fn yellow_is_not_in_word() {
         assert_eq!(
             false,
-            word_matches_requirement("dade", 3, &Requirement::Yellow("g".to_string()))
+            word_matches_requirement("dade", 3, &Requirement::Yellow("g".to_string()),&vec![])
         );
     }
 
@@ -263,12 +263,12 @@ mod tests {
     fn green_matches_location() {
         assert_eq!(
             true,
-            word_matches_requirement("dade", 0, &Requirement::Green("d".to_string()))
+            word_matches_requirement("dade", 0, &Requirement::Green("d".to_string()),&vec![])
         );
 
         assert_eq!(
             false,
-            word_matches_requirement("dade", 1, &Requirement::Green("d".to_string()))
+            word_matches_requirement("dade", 1, &Requirement::Green("d".to_string()),&vec![])
         );
     }
 
