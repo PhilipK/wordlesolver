@@ -1,7 +1,9 @@
 use std::{
     collections::{HashMap, HashSet},
-    io::{self, BufRead},
+    io::{self, BufRead}, time::SystemTime,
 };
+
+use unicode_segmentation::UnicodeSegmentation;
 
 fn main() {
     let mut words = create_word_list();
@@ -30,7 +32,7 @@ fn main() {
             let word = current_word.unwrap();
             let input = current_colors.unwrap();
 
-            let requirements = string_to_requirements(input, word).unwrap();
+            let requirements = string_to_requirements(input, &word).unwrap();
             words.retain(|word| word_matches_requirements(word, &requirements));
 
             sort_list_by_score(&mut words);
@@ -48,23 +50,30 @@ fn main() {
     }
 }
 
-fn sort_list_by_score(words: &mut Vec<String>) {
-    let all_words = words.clone();
-    let mut score_map = HashMap::new();
-    for current_word in &all_words {
-        let mut word_score = 0;
-        for target in &all_words {
-            word_score += calculate_score(current_word, target);
-        }
-        score_map.insert(current_word, word_score);
-    }
+fn sort_list_by_score(words: &mut [String]) {
+    let now = SystemTime::now();
+    let score_map = calc_score_map(words);
+
+    println!("calced scores {:?}",now.elapsed());
     words.sort_by_cached_key(|k| score_map.get(k));
     words.reverse();
+    println!("{:?}",now.elapsed())
 }
 
-fn string_to_requirements<N: AsRef<str>>(input: N, word: N) -> Result<[Requirement; 5], String> {
+fn calc_score_map(words: &[String]) -> HashMap<String, u32> {
+    let mut score_map = HashMap::new();
+    for current_word in words.iter() {
+        let mut word_score = 0;
+        for target in words.iter() {
+            word_score += calculate_score(current_word, target);
+        }
+        score_map.insert(current_word.to_owned(), word_score);
+    }
+    score_map
+}
+
+fn string_to_requirements<N: AsRef<str>>(input: N, word: &str) -> Result<[Requirement; 5], String> {
     let input = input.as_ref();
-    let word = word.as_ref();
 
     if input.len() != 5 {
         return Err("Input is wrong length".to_string());
@@ -78,8 +87,8 @@ fn string_to_requirements<N: AsRef<str>>(input: N, word: N) -> Result<[Requireme
     ])
 }
 
-fn to_requirement(word: &str, index: usize, char: &str) -> Requirement {
-    let s = word[index..index + 1].to_string();
+fn to_requirement<'a>(word: &'a str, index: usize, char: &'_ str) -> Requirement<'a> {
+    let s = &word[index..index + 1];
     match char {
         "g" => Requirement::Green(s),
         "y" => Requirement::Yellow(s),
@@ -88,10 +97,10 @@ fn to_requirement(word: &str, index: usize, char: &str) -> Requirement {
     }
 }
 
-enum Requirement {
-    Green(String),
-    Yellow(String),
-    Black(String),
+enum Requirement<'a> {
+    Green(&'a str),
+    Yellow(&'a str),
+    Black(&'a str),
 }
 
 fn word_matches_requirements<N: AsRef<str>>(word: N, colors: &[Requirement; 5]) -> bool {
@@ -99,10 +108,7 @@ fn word_matches_requirements<N: AsRef<str>>(word: N, colors: &[Requirement; 5]) 
     let green_chars = colors
         .iter()
         .enumerate()
-        .filter(|(_, c)| match c {
-            Requirement::Green(_) => true,
-            _ => false,
-        })
+        .filter(|(_, c)| matches!(c, Requirement::Green(_)))
         .collect();
     for (i, color) in colors.iter().enumerate() {
         if !word_matches_requirement(word_ref, i, color, &green_chars) {
@@ -119,17 +125,18 @@ fn word_matches_requirement<N: AsRef<str>>(
     greens: &Vec<(usize, &Requirement)>,
 ) -> bool {
     let word = word.as_ref();
+    let word = word.graphemes(true).collect::<Vec<&str>>();
     match req {
         Requirement::Green(char) => {
             let char_at_index = &word[index..index + 1];
-            char_at_index.eq(char)
+            char_at_index.join("").eq(char)
         }
         Requirement::Yellow(char) => {
             if !word.contains(char) {
                 return false;
             }
             let char_at_index = &word[index..index + 1];
-            !char_at_index.eq(char)
+            !char_at_index.join("").eq(char)
         }
         Requirement::Black(char) => {
             let mut found_green_match = false;
@@ -156,7 +163,9 @@ fn word_matches_requirement<N: AsRef<str>>(
 fn create_word_list() -> Vec<String> {
     let words_string = include_str!("../danskeord.txt");
     let lines = words_string.split('\n');
-    lines.into_iter().map(|s| s.to_string()).collect()
+    let mut words : Vec<String> = lines.into_iter().map(|s| s.to_string()).collect();
+    sort_list_by_score(&mut words);
+    words
 }
 
 fn calculate_score<N: AsRef<str>, M: AsRef<str>>(word: N, target: M) -> u32 {
@@ -164,8 +173,8 @@ fn calculate_score<N: AsRef<str>, M: AsRef<str>>(word: N, target: M) -> u32 {
     let target = target.as_ref();
     let has_doubles = has_doubles(word);
     let mut sum = 0;
-    for (index, char) in word.chars().enumerate() {
-        let req = char_requirement(index, char.to_string(), target);
+    for (index, char) in word.graphemes(true).enumerate() {
+        let req = char_requirement(index, char, target);
         sum += match req {
             Requirement::Green(_) => 3,
             Requirement::Yellow(_) => {
@@ -181,26 +190,28 @@ fn calculate_score<N: AsRef<str>, M: AsRef<str>>(word: N, target: M) -> u32 {
     sum
 }
 
-fn char_requirement<N: AsRef<str>, M: AsRef<str>>(index: usize, char: N, target: M) -> Requirement {
+fn char_requirement< M: AsRef<str>>(index: usize, char: &str, target: M) -> Requirement {
     let target = target.as_ref();
-    let char = char.as_ref();
-    if !target.contains(char) {
-        Requirement::Black(char.to_string())
-    } else if target[index..index + 1].eq(char) {
-        Requirement::Green(char.to_string())
+    let target = target.graphemes(true).collect::<Vec<&str>>();
+    if !target.contains(&char) {
+        Requirement::Black(char)
+    } else if target[index].eq(char) {
+        Requirement::Green(char)
     } else {
-        Requirement::Yellow(char.to_string())
+        Requirement::Yellow(char)
     }
 }
 
 fn has_doubles<N: AsRef<str>>(word: N) -> bool {
-    let mut set = HashSet::new();
     let word = word.as_ref();
-    for char in word.chars() {
-        if set.contains(&char) {
-            return true;
-        } else {
-            set.insert(char);
+
+    let chars: Vec<&str> = word.graphemes(true).collect();
+
+    for i in 0..5 {
+        for j in i+1..5 {
+            if chars[i] == chars[j] {
+                return true;
+            }
         }
     }
     false
@@ -222,11 +233,11 @@ mod tests {
     #[test]
     fn has_no_blacks() {
         let requirement = [
-            Requirement::Black("c".to_string()),
-            Requirement::Black("d".to_string()),
-            Requirement::Black("e".to_string()),
-            Requirement::Black("f".to_string()),
-            Requirement::Black("g".to_string()),
+            Requirement::Black("c"),
+            Requirement::Black("d"),
+            Requirement::Black("e"),
+            Requirement::Black("f"),
+            Requirement::Black("g"),
         ];
         assert!(word_matches_requirements("abbas", &requirement));
         assert!(!word_matches_requirements("caby", &requirement));
@@ -238,7 +249,7 @@ mod tests {
         assert!(word_matches_requirement(
             "dade",
             0,
-            &Requirement::Yellow("a".to_string()),
+            &Requirement::Yellow("a"),
             &vec![]
         ));
     }
@@ -248,7 +259,7 @@ mod tests {
         assert!(!word_matches_requirement(
             "dade",
             1,
-            &Requirement::Yellow("a".to_string()),
+            &Requirement::Yellow("a"),
             &vec![]
         ));
     }
@@ -258,7 +269,7 @@ mod tests {
         assert!(!word_matches_requirement(
             "dade",
             3,
-            &Requirement::Yellow("g".to_string()),
+            &Requirement::Yellow("g"),
             &vec![]
         ));
     }
@@ -268,14 +279,14 @@ mod tests {
         assert!(word_matches_requirement(
             "dade",
             0,
-            &Requirement::Green("d".to_string()),
+            &Requirement::Green("d"),
             &vec![]
         ));
 
         assert!(!word_matches_requirement(
             "dade",
             1,
-            &Requirement::Green("d".to_string()),
+            &Requirement::Green("d"),
             &vec![]
         ));
     }
@@ -284,11 +295,11 @@ mod tests {
 
     fn handles_multiple() {
         let requirement = [
-            Requirement::Green("p".to_string()),
-            Requirement::Green("l".to_string()),
-            Requirement::Yellow("o".to_string()),
-            Requirement::Green("t".to_string()),
-            Requirement::Black("e".to_string()),
+            Requirement::Green("p"),
+            Requirement::Green("l"),
+            Requirement::Yellow("o"),
+            Requirement::Green("t"),
+            Requirement::Black("e"),
         ];
         assert!(word_matches_requirements("pluto", &requirement));
         assert!(!word_matches_requirements("plate", &requirement));
