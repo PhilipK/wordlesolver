@@ -1,9 +1,10 @@
 use std::{
-    collections::{HashMap},
-    io::{self, BufRead}, time::SystemTime,
+    collections::HashMap,
+    io::{self, BufRead},
+    time::SystemTime, fs::File,
 };
 
-use unicode_segmentation::UnicodeSegmentation;
+use unicode_segmentation::{UnicodeSegmentation, Graphemes};
 
 fn main() {
     let mut words = create_word_list();
@@ -53,19 +54,19 @@ fn main() {
 fn sort_list_by_score(words: &mut [String]) {
     let now = SystemTime::now();
     let score_map = calc_score_map(words);
-
-    println!("calced scores {:?}",now.elapsed());
+    println!("calced scores {:?}", now.elapsed());
     words.sort_by_cached_key(|k| score_map.get(k));
     words.reverse();
-    println!("{:?}",now.elapsed())
+    println!("{:?}", now.elapsed())
 }
 
 fn calc_score_map(words: &[String]) -> HashMap<String, u32> {
     let mut score_map = HashMap::new();
     for current_word in words.iter() {
         let mut word_score = 0;
+        let current_word_graph= current_word.graphemes(true);
         for target in words.iter() {
-            word_score += calculate_score(current_word, target);
+            word_score += calculate_score_graphemes(current_word_graph.clone(), target.graphemes(true));
         }
         score_map.insert(current_word.to_owned(), word_score);
     }
@@ -161,20 +162,23 @@ fn word_matches_requirement<N: AsRef<str>>(
 }
 
 fn create_word_list() -> Vec<String> {
-    let words_string = include_str!("../danskeord.txt");
+    let words_string = include_str!("../sorteredeord.txt");
     let lines = words_string.split('\n');
-    let mut words : Vec<String> = lines.into_iter().map(|s| s.to_string()).collect();
-    sort_list_by_score(&mut words);
+    let mut words: Vec<String> = lines.into_iter().map(|s| s.to_string()).collect();
+    //sort_list_by_score(&mut words);
+    //for word in words.iter(){
+        //println!("{}",word);
+    //}
+
+    //println!("");
     words
 }
 
-fn calculate_score<N: AsRef<str>, M: AsRef<str>>(word: N, target: M) -> u32 {
-    let word = word.as_ref();
-    let target = target.as_ref();
-    let has_doubles = has_doubles(word);
+fn calculate_score_graphemes(word: Graphemes, target: Graphemes) -> u32 {
+    let has_doubles = has_doubles_graphemes(word.clone());
     let mut sum = 0;
-    for (index, char) in word.graphemes(true).enumerate() {
-        let req = char_requirement(index, char, target);
+    for (index, char) in word.enumerate() {
+        let req = char_requirement_graphemes(index, char, target.clone());
         sum += match req {
             Requirement::Green(_) => 3,
             Requirement::Yellow(_) => {
@@ -190,17 +194,55 @@ fn calculate_score<N: AsRef<str>, M: AsRef<str>>(word: N, target: M) -> u32 {
     sum
 }
 
-fn char_requirement< M: AsRef<str>>(index: usize, char: &str, target: M) -> Requirement {
-    let target = target.as_ref();
-    let target = target.graphemes(true).collect::<Vec<&str>>();
-    if !target.contains(&char) {
-        Requirement::Black(char)
-    } else if target[index].eq(char) {
-        Requirement::Green(char)
-    } else {
-        Requirement::Yellow(char)
+
+fn calculate_score(word: &str, target: &str) -> u32 {
+    let has_doubles = has_doubles(word);
+    let mut sum = 0;
+    let graphemes = target.graphemes(true);
+    for (index, char) in word.graphemes(true).enumerate() {
+        let req = char_requirement_graphemes(index, char, graphemes.clone());
+        sum += match req {
+            Requirement::Green(_) => 3,
+            Requirement::Yellow(_) => {
+                if has_doubles {
+                    0
+                } else {
+                    2
+                }
+            }
+            Requirement::Black(_) => 0,
+        }
     }
+    sum
 }
+
+fn char_requirement_graphemes<'a>(index: usize, char: &'a str, target: Graphemes) -> Requirement<'a> {
+    for (i, cur) in target.enumerate() {
+        if cur.eq(char) {
+            if index == i {
+                return Requirement::Green(char);
+            } else {
+                return Requirement::Yellow(char);
+            }
+        }
+    }
+    Requirement::Black(char)
+}
+
+
+
+fn has_doubles_graphemes(chars: Graphemes) -> bool {
+    let chars: Vec<&str> = chars.collect();
+    for i in 0..5 {
+        for j in i + 1..5 {
+            if chars[i] == chars[j] {
+                return true;
+            }
+        }
+    }
+    false
+}
+
 
 fn has_doubles<N: AsRef<str>>(word: N) -> bool {
     let word = word.as_ref();
@@ -208,7 +250,7 @@ fn has_doubles<N: AsRef<str>>(word: N) -> bool {
     let chars: Vec<&str> = word.graphemes(true).collect();
 
     for i in 0..5 {
-        for j in i+1..5 {
+        for j in i + 1..5 {
             if chars[i] == chars[j] {
                 return true;
             }
@@ -224,10 +266,18 @@ mod tests {
     #[test]
     fn can_calculate_score() {
         let score = calculate_score("cares", "cotte");
-        assert_eq!(4, score);
+        assert_eq!(5, score);
 
         let score = calculate_score("pluto", "cares");
         assert_eq!(0, score);
+
+
+        let score = calculate_score("æbler", "cares");
+        assert_eq!(5, score);
+
+
+        let score = calculate_score("æbler", "æbler");
+        assert_eq!(15, score);
     }
 
     #[test]
